@@ -85,7 +85,7 @@ exports.removeFromCart = async (req, res) => {
     const orgId = req.org_id;
 
     const [result] = await pool.query(
-      "DELETE FROM cart_items WHERE cart_item_id = ? AND org_id = ?", 
+      "DELETE FROM cart_items WHERE cart_item_id = ? AND org_id = ?",
       [cart_item_id, orgId]
     );
 

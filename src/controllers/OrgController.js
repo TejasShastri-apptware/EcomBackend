@@ -44,13 +44,6 @@ exports.getOrganizationById = async (req, res) => {
         res.status(500).json({ message: "Error getting org by id" });
     }
 }
-
-/**
- * Resolve an org by slug (maps to org_name — the unique human-readable identifier).
- * Used by the frontend to translate a URL slug into an org_id before making
- * tenant-scoped API calls.
- * Route: GET /api/orgs/resolve/:slug
- */
 exports.getOrgBySlug = async (req, res) => {
     try {
         const { slug } = req.params;

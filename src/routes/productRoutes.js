@@ -24,4 +24,10 @@ router.delete("/:id", injectContext, productController.deleteProduct);
 router.post("/:id/tags", injectContext, productController.addTagToProduct);
 router.delete("/:id/tags/:tag_id", injectContext, productController.removeTagFromProduct);
 
+// Product image routes
+router.get("/:id/images", injectContext, productController.getProductImages);
+router.post("/:id/images", injectContext, productController.addProductImage);
+router.put("/:id/images/:image_id/set-primary", injectContext, productController.setPrimaryImage);
+router.delete("/:id/images/:image_id", injectContext, productController.deleteProductImage);
+
 module.exports = router;

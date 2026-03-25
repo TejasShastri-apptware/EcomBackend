@@ -9,6 +9,7 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const orgRoutes = require("./routes/orgRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const tagRoutes = require("./routes/tagRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/orgs", orgRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/tags", tagRoutes);
+app.use("/api/upload", uploadRoutes);
 
 app.get("/", (req, res) => {
     res.send("Furn API is live");

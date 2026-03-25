@@ -406,3 +406,213 @@ exports.removeTagFromProduct = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// ─── Product Images ──────────────────────────────────────────────────────────
+
+/**
+ * GET /products/:id/images
+ * Returns all images for a product, primary first.
+ */
+exports.getProductImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const orgId = req.org_id;
+
+    // Verify product belongs to this org
+    const [prodCheck] = await pool.query(
+      "SELECT product_id FROM products WHERE product_id = ? AND org_id = ?",
+      [id, orgId]
+    );
+    if (prodCheck.length === 0) return res.status(404).json({ message: "Product not found" });
+
+    const [rows] = await pool.query(
+      "SELECT * FROM product_images WHERE product_id = ? ORDER BY is_primary DESC, display_order ASC, image_id ASC",
+      [id]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error("Error in getProductImages:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+/**
+ * POST /products/:id/images
+ * Body: { image_url, display_order?, is_primary? }
+ * Adds a new image. If is_primary=true, unsets all other primaries
+ * and updates products.image_url for backward compatibility.
+ */
+exports.addProductImage = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { id } = req.params;
+    const orgId = req.org_id;
+    const { image_url, display_order = 0, is_primary = false } = req.body;
+
+    if (!image_url) return res.status(400).json({ message: "image_url is required" });
+
+    // Verify product belongs to org
+    const [prodCheck] = await connection.query(
+      "SELECT product_id FROM products WHERE product_id = ? AND org_id = ?",
+      [id, orgId]
+    );
+    if (prodCheck.length === 0) throw new Error("Product not found");
+
+    // Check if this is the first image — auto-make it primary
+    const [existing] = await connection.query(
+      "SELECT COUNT(*) AS cnt FROM product_images WHERE product_id = ?",
+      [id]
+    );
+    const makeItPrimary = is_primary || existing[0].cnt === 0;
+
+    if (makeItPrimary) {
+      // Unset existing primaries
+      await connection.query(
+        "UPDATE product_images SET is_primary = FALSE WHERE product_id = ?",
+        [id]
+      );
+      // Sync products.image_url for backward compat (product cards, ProductDetail, etc.)
+      await connection.query(
+        "UPDATE products SET image_url = ? WHERE product_id = ? AND org_id = ?",
+        [image_url, id, orgId]
+      );
+    }
+
+    const [result] = await connection.query(
+      "INSERT INTO product_images (product_id, image_url, display_order, is_primary) VALUES (?, ?, ?, ?)",
+      [id, image_url, display_order, makeItPrimary]
+    );
+
+    await connection.commit();
+    res.status(201).json({ image_id: result.insertId, message: "Image added" });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error in addProductImage:", error);
+    res.status(500).json({ message: error.message || "Server error" });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * PUT /products/:id/images/:image_id/set-primary
+ * Sets the given image as primary, syncs products.image_url.
+ */
+exports.setPrimaryImage = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { id, image_id } = req.params;
+    const orgId = req.org_id;
+
+    // Verify product belongs to org
+    const [prodCheck] = await connection.query(
+      "SELECT product_id FROM products WHERE product_id = ? AND org_id = ?",
+      [id, orgId]
+    );
+    if (prodCheck.length === 0) throw new Error("Product not found");
+
+    // Get the image URL before updating
+    const [imgCheck] = await connection.query(
+      "SELECT image_url FROM product_images WHERE image_id = ? AND product_id = ?",
+      [image_id, id]
+    );
+    if (imgCheck.length === 0) throw new Error("Image not found");
+
+    // Unset all primaries for this product
+    await connection.query(
+      "UPDATE product_images SET is_primary = FALSE WHERE product_id = ?",
+      [id]
+    );
+
+    // Set new primary
+    await connection.query(
+      "UPDATE product_images SET is_primary = TRUE WHERE image_id = ? AND product_id = ?",
+      [image_id, id]
+    );
+
+    // Sync products.image_url
+    await connection.query(
+      "UPDATE products SET image_url = ? WHERE product_id = ? AND org_id = ?",
+      [imgCheck[0].image_url, id, orgId]
+    );
+
+    await connection.commit();
+    res.json({ message: "Primary image updated" });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error in setPrimaryImage:", error);
+    res.status(500).json({ message: error.message || "Server error" });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * DELETE /products/:id/images/:image_id
+ * Deletes a product image. If it was primary, promotes the next image.
+ */
+exports.deleteProductImage = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const { id, image_id } = req.params;
+    const orgId = req.org_id;
+
+    // Verify product belongs to org
+    const [prodCheck] = await connection.query(
+      "SELECT product_id FROM products WHERE product_id = ? AND org_id = ?",
+      [id, orgId]
+    );
+    if (prodCheck.length === 0) throw new Error("Product not found");
+
+    // Get the image to check is_primary
+    const [imgCheck] = await connection.query(
+      "SELECT image_id, is_primary FROM product_images WHERE image_id = ? AND product_id = ?",
+      [image_id, id]
+    );
+    if (imgCheck.length === 0) throw new Error("Image not found");
+
+    const wasPrimary = imgCheck[0].is_primary;
+
+    // Delete the image
+    await connection.query("DELETE FROM product_images WHERE image_id = ?", [image_id]);
+
+    if (wasPrimary) {
+      // Promote the next available image as primary
+      const [remaining] = await connection.query(
+        "SELECT image_id, image_url FROM product_images WHERE product_id = ? ORDER BY display_order ASC, image_id ASC LIMIT 1",
+        [id]
+      );
+      if (remaining.length > 0) {
+        await connection.query(
+          "UPDATE product_images SET is_primary = TRUE WHERE image_id = ?",
+          [remaining[0].image_id]
+        );
+        await connection.query(
+          "UPDATE products SET image_url = ? WHERE product_id = ? AND org_id = ?",
+          [remaining[0].image_url, id, orgId]
+        );
+      } else {
+        // No images left — clear products.image_url
+        await connection.query(
+          "UPDATE products SET image_url = NULL WHERE product_id = ? AND org_id = ?",
+          [id, orgId]
+        );
+      }
+    }
+
+    await connection.commit();
+    res.json({ message: "Image deleted" });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error in deleteProductImage:", error);
+    res.status(500).json({ message: error.message || "Server error" });
+  } finally {
+    connection.release();
+  }
+};
