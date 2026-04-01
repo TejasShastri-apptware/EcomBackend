@@ -60,7 +60,7 @@ export const Order = {
       `SELECT 
           o.order_id, o.user_id, o.total_amount, o.order_status, o.created_at,
           a.address_line1, a.city, a.postal_code, a.country,
-          oi.product_id, p.name AS product_name, oi.quantity, oi.unit_price, oi.subtotal
+          oi.product_id, p.name AS product_name, oi.quantity, oi.unit_price, (oi.unit_price * oi.quantity) AS subtotal
        FROM orders o
        LEFT JOIN addresses a ON o.shipping_address_id = a.address_id
        JOIN order_items oi ON o.order_id = oi.order_id
@@ -106,12 +106,12 @@ export const Order = {
        FROM orders o
        LEFT JOIN addresses a ON o.shipping_address_id = a.address_id
        WHERE o.order_id = ? AND o.org_id = ?`,
-      [order_id, orgId]
+      [orderId, orgId]
     );
     if (orderRows.length === 0) return null;
 
     const [items] = await pool.query(
-      `SELECT oi.product_id, p.name, oi.quantity, oi.unit_price, oi.subtotal
+      `SELECT oi.product_id, p.name, oi.quantity, oi.unit_price, (oi.unit_price * oi.quantity) AS subtotal
        FROM order_items oi
        JOIN products p ON oi.product_id = p.product_id
        WHERE oi.order_id = ?`,
