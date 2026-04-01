@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const userController = require("../controllers/userController");
-const injectContext = require("../middleware/injectContext");
+import userController from "../controllers/userController.js";
+import injectContext from "../middleware/injectContext.js";
 
 // Self-service profile (logged-in user)
 router.get("/me", injectContext, userController.getMe);
@@ -21,4 +21,4 @@ router.delete("/org/:id", injectContext, userController.deleteUser);
 router.get("/global", userController.getAllUsers);
 router.get("/global/:id", userController.getUserById);
 
-module.exports = router;
+export default router;

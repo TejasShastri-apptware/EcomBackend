@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const productController = require("../controllers/ProductController");
-const injectContext = require("../middleware/injectContext");
+import productController from "../controllers/ProductController.js";
+import injectContext from "../middleware/injectContext.js";
 
 // NOTE: Route order matters — specific paths before /:id to avoid shadowing.
 // Global routes first so they aren't caught by /:id
@@ -30,4 +30,4 @@ router.post("/:id/images", injectContext, productController.addProductImage);
 router.put("/:id/images/:image_id/set-primary", injectContext, productController.setPrimaryImage);
 router.delete("/:id/images/:image_id", injectContext, productController.deleteProductImage);
 
-module.exports = router;
+export default router;

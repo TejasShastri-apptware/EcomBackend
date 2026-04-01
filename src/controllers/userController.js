@@ -1,11 +1,11 @@
-const pool = require("../config/db");
+import { User } from "../models/User.js";
+import { Address } from "../models/Address.js";
+import pool from "../config/db.js";
 
 /**
  * POST /users/login
- * Body: { email, password }
- * org_id comes from injectContext middleware (x-org-id header).
  */
-exports.login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const orgId = req.org_id;
@@ -17,22 +17,15 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: 'Organization context is missing (x-org-id header)' });
     }
 
-    const [rows] = await pool.query(
-      `SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id 
-       WHERE u.email = ? AND u.org_id = ?`,
-      [email.trim().toLowerCase(), orgId]
-    );
+    const user = await User.findByEmailAndOrg(email, orgId);
 
     console.log("Login Attempt:", { email: email.trim().toLowerCase(), orgId });
-    console.log("Rows Found:", rows.length);
 
-    if (rows.length === 0) {
-      const [existCheck] = await pool.query(`SELECT org_id FROM users WHERE email = ?`, [email.trim().toLowerCase()]);
+    if (!user) {
+      const existCheck = await User.checkEmailExistsGlobal(email);
       console.log("Email exists in these Orgs:", existCheck);
       return res.status(401).json({ message: 'Invalid email or password' });
     }
-
-    const user = rows[0];
 
     // Plain-text comparison (to be upgraded to bcrypt later)
     if (user.password_hash !== password) {
@@ -47,24 +40,20 @@ exports.login = async (req, res) => {
   }
 };
 
- /* Requires x-user-id and x-org-id headers (via injectContext).*/
-exports.getMe = async (req, res) => {
+/**
+ * GET /users/me
+ */
+const getMe = async (req, res) => {
   try {
     const userId = req.user_id;
     const orgId = req.org_id;
 
     if (!userId) return res.status(401).json({ message: 'User ID missing from request context' });
 
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.full_name, u.email, u.phone, u.org_id, u.created_at, r.role_name
-       FROM users u
-       JOIN roles r ON u.role_id = r.role_id
-       WHERE u.user_id = ? AND u.org_id = ?`,
-      [userId, orgId]
-    );
+    const user = await User.findByIdWithRole(userId, orgId);
 
-    if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
-    res.json(rows[0]);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
   } catch (error) {
     console.error('Error in getMe:', error);
     res.status(500).json({ message: 'Server error' });
@@ -73,10 +62,8 @@ exports.getMe = async (req, res) => {
 
 /**
  * PUT /users/me
- * Updates full_name and phone for the currently logged-in user.
- * Email and password changes are intentionally excluded here.
  */
-exports.updateMe = async (req, res) => {
+const updateMe = async (req, res) => {
   try {
     const userId = req.user_id;
     const orgId = req.org_id;
@@ -85,12 +72,9 @@ exports.updateMe = async (req, res) => {
     if (!userId) return res.status(401).json({ message: 'User ID missing from request context' });
     if (!full_name) return res.status(400).json({ message: 'full_name is required' });
 
-    const [result] = await pool.query(
-      `UPDATE users SET full_name = ?, phone = ? WHERE user_id = ? AND org_id = ?`,
-      [full_name, phone || null, userId, orgId]
-    );
+    const updated = await User.updateProfile(userId, orgId, { full_name, phone });
 
-    if (result.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
+    if (!updated) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {
     console.error('Error in updateMe:', error);
@@ -98,31 +82,26 @@ exports.updateMe = async (req, res) => {
   }
 };
 
-exports.getAllUsersUnderOrg = async (req, res) => {
+/**
+ * GET /users/ (Admin)
+ */
+const getAllUsersUnderOrg = async (req, res) => {
   try {
     const orgId = req.org_id;
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.full_name, u.email, u.phone, r.role_name, u.created_at, u.org_id 
-       FROM users u
-       JOIN roles r ON u.role_id = r.role_id
-       WHERE u.org_id = ?`,
-      [orgId]
-    );
+    const rows = await User.findAllByOrg(orgId);
     res.json(rows);
   } catch (error) {
+    console.error('Error in getAllUsersUnderOrg:', error);
     res.status(500).json({ message: "Error fetching users" });
   }
 };
 
-// Global
-exports.getAllUsers = async (req, res) => {
+/**
+ * GET /users/global/all (Global Admin)
+ */
+const getAllUsers = async (req, res) => {
   try {
-    const [rows] = await pool.query(`
-      SELECT u.user_id, u.full_name, u.email, u.phone, r.role_name, u.created_at, u.org_id 
-      FROM users u
-      JOIN roles r ON u.role_id = r.role_id
-      ORDER BY u.org_id
-    `);
+    const rows = await User.findAllGlobal();
     res.json(rows);
   } catch (error) {
     console.error("Error in getAllUsers:", error);
@@ -130,45 +109,44 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-exports.getUserByIdUnderOrg = async (req, res) => {
+/**
+ * GET /users/:id (Admin)
+ */
+const getUserByIdUnderOrg = async (req, res) => {
   try {
     const { id } = req.params;
     const orgId = req.org_id;
 
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.full_name, u.email, u.phone, u.org_id, u.created_at, r.role_name, a.address_id 
-       FROM users u
-       JOIN roles r ON u.role_id = r.role_id
-       LEFT JOIN addresses a ON u.user_id = a.user_id AND a.is_default = TRUE
-       WHERE u.user_id = ? AND u.org_id = ?`,
-      [id, orgId]
-    );
+    const user = await User.findDetailByIdUnderOrg(id, orgId);
 
-    if (rows.length === 0) return res.status(404).json({ message: "User not found" });
-    res.json(rows[0]);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user);
   } catch (error) {
+    console.error('Error in getUserByIdUnderOrg:', error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// Global
-exports.getUserById = async (req, res) => {
+/**
+ * GET /users/:id (Global Admin)
+ */
+const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.query(
-      "SELECT user_id, full_name, email, phone, role_id, org_id FROM users WHERE user_id = ?",
-      [id]
-    );
+    const user = await User.findByIdGlobal(id);
 
-    if (rows.length === 0) return res.status(404).json({ message: `User by id ${id} not found` });
-    res.json(rows[0]);
+    if (!user) return res.status(404).json({ message: `User by id ${id} not found` });
+    res.json(user);
   } catch (error) {
     console.error("Error in getUserById:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-exports.createUser = async (req, res) => {
+/**
+ * POST /users/register
+ */
+const createUser = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -178,29 +156,31 @@ exports.createUser = async (req, res) => {
       address_line1, address_line2, city, state, postal_code, country, label
     } = req.body;
     const orgId = req.org_id;
-    console.log("user data received for registration:", req.body);
-
-    // Insert user (no default_shipping_address column anymore)
-    const [userResult] = await connection.query(
-      `INSERT INTO users (full_name, email, password_hash, phone, role_id, org_id) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [full_name, email.trim().toLowerCase(), password_hash, phone, role_id || 2, orgId]
-    );
-
-    const newUserId = userResult.insertId;
+    
+    // Insert user
+    const userId = await User.create({
+      full_name, email, password_hash, phone, role_id, org_id: orgId
+    }, connection);
 
     // Insert the registration address as the default
-    await connection.query(
-      `INSERT INTO addresses (org_id, user_id, label, address_line1, address_line2, city, state, postal_code, country, is_default)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
-      [orgId, newUserId, label || 'Home', address_line1, address_line2 || null, city, state, postal_code, country]
-    );
+    await Address.create({
+      org_id: orgId,
+      user_id: userId,
+      label: label || 'Home',
+      address_line1,
+      address_line2,
+      city,
+      state,
+      postal_code,
+      country,
+      is_default: true
+    }, connection);
 
     await connection.commit();
 
     res.status(201).json({
       message: "User and default address created",
-      user_id: newUserId,
+      user_id: userId,
       email
     });
 
@@ -209,6 +189,7 @@ exports.createUser = async (req, res) => {
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ message: `Email already registered.` });
     }
+    console.error("Error in createUser:", error);
     res.status(500).json({ message: "Server error during user creation", error: error.message });
   } finally {
     connection.release();
@@ -216,38 +197,50 @@ exports.createUser = async (req, res) => {
 };
 
 /**
- * PUT /users/org/:id  — Admin updates any user under this org.
- * Only updates name and phone (not address — use /addresses for that).
+ * PUT /users/org/:id (Admin Update)
  */
-exports.updateUser = async (req, res) => {
+const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { full_name, phone } = req.body;
-    const orgId = req.org_id;
+    const org_id = req.org_id;
 
-    const [result] = await pool.query(
-      `UPDATE users SET full_name = ?, phone = ? WHERE user_id = ? AND org_id = ?`,
-      [full_name, phone || null, id, orgId]
-    );
+    const updated = await User.updateProfile(id, org_id, { full_name, phone });
 
-    if (result.affectedRows === 0) return res.status(404).json({ message: "User not found" });
+    if (!updated) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User updated successfully" });
   } catch (error) {
+    console.error('Error in updateUser:', error);
     res.status(500).json({ message: "Update failed" });
   }
 };
 
-// Org Check
-exports.deleteUser = async (req, res) => {
+/**
+ * DELETE /users/org/:id (Admin Delete)
+ */
+const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
     const orgId = req.org_id;
-    const [result] = await pool.query("DELETE FROM users WHERE user_id = ? AND org_id = ?", [id, orgId]);
+    const deleted = await User.delete(id, orgId);
 
-    if (result.affectedRows === 0) return res.status(404).json({ message: "User not found" });
+    if (!deleted) return res.status(404).json({ message: "User not found" });
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Error in deleteUser:", error);
     res.status(500).json({ message: "Server error" });
   }
+};
+
+export default {
+  login,
+  getMe,
+  updateMe,
+  getAllUsersUnderOrg,
+  getAllUsers,
+  getUserByIdUnderOrg,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser
 };

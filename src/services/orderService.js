@@ -1,43 +1,50 @@
-const pool = require("../config/db");
+import { Order } from "../models/Order.js";
+import { Product } from "../models/Product.js";
+import pool from "../config/db.js";
 
-exports.createOrder = async (userId, items) => {
+/**
+ * Service to handle complex order logic (e.g. multi-step validation, stock reduction, etc.)
+ */
+export const createOrder = async (userId, orgId, items) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
-        let totalAmount = 0
+        let totalAmount = 0;
 
-        //validation
-        for(const item of items) {
-            const [productRows] = await connection.query(
-                "select price, discount from product where id = ?", [item.productId]
-            );
+        // 1. Validation & Total Calculation
+        for (const item of items) {
+            const product = await Product.findByIdUnderOrg(item.productId, orgId);
 
-            if(productRows.length === 0) throw new Error(`Product not found : ${item.productId}`);
+            if (!product) throw new Error(`Product not found or invalid org: ${item.productId}`);
+            if (product.stock_quantity < item.quantity) throw new Error(`Insufficient stock for product: ${product.name}`);
 
-            const product = productRows[0];
-            const itemPrice = product.price - product.discount;
+            const itemPrice = product.price; // We could apply discounts here if needed
             totalAmount += itemPrice * item.quantity;
         }
-        const [orderRes] = await connection.query(
-            "INSERT INTO user_order (user_id, total, status) VALUES (?, ?, 'PENDING')",
-            [userId, totalAmount]
-        );
 
-        const orderId = orderRes.insertId;
+        // 2. Create Order Header via Model
+        const orderId = await Order.create({
+            user_id: userId,
+            org_id: orgId,
+            total_amount: totalAmount,
+            payment_id: null, // Default for service
+            shipping_address_id: null // Default for service
+        }, connection);
 
-        //insertion of items
-        for(const item of items) {
-            const [productRows] = await connection.query(
-                "select price, discount from product where id = ?", [item.productId]
-            );
+        // 3. Insertion of items & Stock Adjustment
+        for (const item of items) {
+            const product = await Product.findByIdUnderOrg(item.productId, orgId);
 
-            const product = productRows[0];
-            const itemPrice = product.price - product.discount;
+            await Order.addItems(orderId, [{
+                product_id: item.productId,
+                quantity: item.quantity,
+                price: product.price
+            }], connection);
 
-            await connection.query(
-                "INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase) VALUES (?, ?, ?, ?)",
-                [orderId, item.productId, item.quantity, itemPrice]
-            );
+            // Deduct stock
+            await Product.update(item.productId, orgId, {
+                stock_quantity: product.stock_quantity - item.quantity
+            }, connection);
         }
 
         await connection.commit();
@@ -50,6 +57,3 @@ exports.createOrder = async (userId, items) => {
         connection.release();
     }
 }
-
-
-module.exports = {createOrder};

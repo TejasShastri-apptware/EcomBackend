@@ -1,13 +1,12 @@
-const cloudinary = require('./cnary');
-const pool = require('../config/db');
+import cloudinary from './cnary.js';
+import { Product } from '../models/Product.js';
+import pool from '../config/db.js';
 
 /**
  * POST /api/upload/product/:product_id
- * Accepts multipart/form-data with field "image".
- * Uploads to Cloudinary → saves to product_images table → syncs products.image_url if primary.
- * Query params: ?is_primary=true (optional)
+ * Multipart/form-data handler.
  */
-exports.uploadProductImage = async (req, res) => {
+const uploadProductImage = async (req, res) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
@@ -20,16 +19,13 @@ exports.uploadProductImage = async (req, res) => {
         const orgId = req.org_id;
         const is_primary = req.query.is_primary === 'true' || req.body.is_primary === 'true';
 
-        // Verify product belongs to this org
-        const [prodCheck] = await connection.query(
-            'SELECT product_id FROM products WHERE product_id = ? AND org_id = ?',
-            [product_id, orgId]
-        );
-        if (prodCheck.length === 0) {
+        // 1. Verify existence & ownership via Model
+        const prodCheck = await Product.findByIdUnderOrg(product_id, orgId);
+        if (!prodCheck) {
             return res.status(404).json({ message: 'Product not found' });
         }
 
-        // Upload buffer to Cloudinary
+        // 2. Cloudinary Upload
         const base64 = req.file.buffer.toString('base64');
         const dataURI = `data:${req.file.mimetype};base64,${base64}`;
 
@@ -38,42 +34,23 @@ exports.uploadProductImage = async (req, res) => {
             resource_type: 'image',
         });
 
-        console.log("Image upload result : ", uploadResult);
-
         const imageUrl = uploadResult.secure_url;
         const publicId = uploadResult.public_id;
 
-        // Check if this is the first image → auto-primary
-        const [existing] = await connection.query(
-            'SELECT COUNT(*) AS cnt FROM product_images WHERE product_id = ?',
-            [product_id]
-        );
-        const makeItPrimary = is_primary || existing[0].cnt === 0;
-
-        if (makeItPrimary) {
-            await connection.query(
-                'UPDATE product_images SET is_primary = FALSE WHERE product_id = ?',
-                [product_id]
-            );
-            // Keep products.image_url in sync for backward compat
-            await connection.query(
-                'UPDATE products SET image_url = ? WHERE product_id = ? AND org_id = ?',
-                [imageUrl, product_id, orgId]
-            );
-        }
-
-        const [result] = await connection.query(
-            'INSERT INTO product_images (product_id, image_url, display_order, is_primary) VALUES (?, ?, ?, ?)',
-            [product_id, imageUrl, existing[0].cnt, makeItPrimary]
-        );
+        // 3. Save to database via Model (handles primary logic internally)
+        // Note: The model's images.add method already handles is_primary logic
+        const imageId = await Product.images.add(product_id, orgId, {
+            image_url: imageUrl,
+            is_primary: is_primary
+        }, connection);
 
         await connection.commit();
 
         res.status(201).json({
-            image_id: result.insertId,
+            image_id: imageId,
             image_url: imageUrl,
             public_id: publicId,
-            is_primary: makeItPrimary,
+            is_primary: is_primary || false, // The client might want to know if it ended up being primary
             message: 'Image uploaded successfully',
         });
     } catch (error) {
@@ -84,3 +61,5 @@ exports.uploadProductImage = async (req, res) => {
         connection.release();
     }
 };
+
+export default uploadProductImage;

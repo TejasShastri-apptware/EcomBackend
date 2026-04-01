@@ -1,8 +1,8 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const multer = require('multer');
-const imageController = require('../cloudinary/ImageController');
-const injectContext = require('../middleware/injectContext');
+import multer from 'multer';
+import uploadProductImage from '../cloudinary/ImageController.js';
+import injectContext from '../middleware/injectContext.js';
 
 // Store file in memory buffer (no temp disk writes)
 const upload = multer({
@@ -19,6 +19,6 @@ const upload = multer({
 
 // POST /api/upload/product/:product_id
 // Accepts a single "image" field in multipart/form-data
-router.post('/product/:product_id', injectContext, upload.single('image'), imageController.uploadProductImage);
+router.post('/product/:product_id', injectContext, upload.single('image'), uploadProductImage);
 
-module.exports = router;
+export default router;

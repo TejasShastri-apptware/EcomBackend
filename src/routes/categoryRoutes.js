@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const CategoryController = require("../controllers/CategoryController");
-const injectContext = require("../middleware/injectContext");
+import CategoryController from "../controllers/CategoryController.js";
+import injectContext from "../middleware/injectContext.js";
 
 // Tenant scoped
 router.post("/", injectContext, CategoryController.createCat);
@@ -10,4 +10,4 @@ router.get("/:id", injectContext, CategoryController.getCategoryById);
 router.put("/:id", injectContext, CategoryController.updateCategory);
 router.delete("/:id", injectContext, CategoryController.deleteCategory);
 
-module.exports = router;
+export default router;

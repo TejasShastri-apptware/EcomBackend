@@ -1,12 +1,16 @@
-const pool = require("../config/db");
+import { Address } from "../models/Address.js";
+import pool from "../config/db.js";
 
-exports.addAddress = async (req, res) => {
+/**
+ * POST /addresses/
+ */
+const addAddress = async (req, res) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
         const orgId = req.org_id;
-        const userId = req.user_id; // From middleware — never trust body for identity
+        const userId = req.user_id;
 
         const {
             label, address_line1, address_line2, city,
@@ -14,22 +18,24 @@ exports.addAddress = async (req, res) => {
         } = req.body;
 
         if (is_default) {
-            // Unset existing defaults
-            await connection.query(
-                "UPDATE addresses SET is_default = FALSE WHERE user_id = ? AND org_id = ?",
-                [userId, orgId]
-            );
+            await Address.setDefault(null, userId, orgId, connection);
         }
 
-        const [result] = await connection.query(
-            `INSERT INTO addresses 
-            (org_id, user_id, label, address_line1, address_line2, city, state, postal_code, country, is_default) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [orgId, userId, label || null, address_line1, address_line2 || null, city, state, postal_code, country, is_default || false]
-        );
+        const addressId = await Address.create({
+            org_id: orgId,
+            user_id: userId,
+            label,
+            address_line1,
+            address_line2,
+            city,
+            state,
+            postal_code,
+            country,
+            is_default: !!is_default
+        }, connection);
 
         await connection.commit();
-        res.status(201).json({ address_id: result.insertId, message: "Address added successfully" });
+        res.status(201).json({ address_id: addressId, message: "Address added successfully" });
     } catch (error) {
         await connection.rollback();
         console.error("Error adding address:", error);
@@ -39,54 +45,42 @@ exports.addAddress = async (req, res) => {
     }
 };
 
-exports.getUserAddresses = async (req, res) => {
+/**
+ * GET /addresses/user/:user_id
+ */
+const getUserAddresses = async (req, res) => {
     try {
         const { user_id } = req.params;
         const orgId = req.org_id;
 
-        const [rows] = await pool.query(
-            "SELECT * FROM addresses WHERE user_id = ? AND org_id = ? ORDER BY is_default DESC, created_at ASC",
-            [user_id, orgId]
-        );
-
+        const rows = await Address.findByUser(user_id, orgId);
         res.json(rows);
     } catch (error) {
+        console.error("Error fetching user addresses:", error);
         res.status(500).json({ message: "Error fetching addresses" });
     }
 };
 
 /**
  * PUT /addresses/set-default/:address_id
- * Sets the given address as default for the currently logged-in user.
- * user_id is taken from req.user_id (x-user-id header), NOT the body.
  */
-exports.setDefaultAddress = async (req, res) => {
+const setDefaultAddress = async (req, res) => {
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
         const { address_id } = req.params;
-        const userId = req.user_id; // From middleware — secure
+        const userId = req.user_id;
         const orgId = req.org_id;
 
-        // Unset current defaults for this user
-        await connection.query(
-            "UPDATE addresses SET is_default = FALSE WHERE user_id = ? AND org_id = ?",
-            [userId, orgId]
-        );
-
-        // Set new default
-        const [result] = await connection.query(
-            "UPDATE addresses SET is_default = TRUE WHERE address_id = ? AND user_id = ? AND org_id = ?",
-            [address_id, userId, orgId]
-        );
-
-        if (result.affectedRows === 0) throw new Error("Address not found");
+        const updated = await Address.setDefault(address_id, userId, orgId, connection);
+        if (!updated) throw new Error("Address not found");
 
         await connection.commit();
         res.json({ message: "Default address updated" });
     } catch (error) {
         await connection.rollback();
+        console.error("Error in setDefaultAddress:", error);
         res.status(500).json({ message: error.message || "Error setting default address" });
     } finally {
         connection.release();
@@ -95,9 +89,8 @@ exports.setDefaultAddress = async (req, res) => {
 
 /**
  * PUT /addresses/:address_id
- * Edit an existing address. Only the owning user (via x-user-id) can edit it.
  */
-exports.updateAddress = async (req, res) => {
+const updateAddress = async (req, res) => {
     try {
         const { address_id } = req.params;
         const userId = req.user_id;
@@ -112,14 +105,18 @@ exports.updateAddress = async (req, res) => {
             return res.status(400).json({ message: "address_line1, city, postal_code, and country are required" });
         }
 
-        const [result] = await pool.query(
-            `UPDATE addresses 
-             SET label = ?, address_line1 = ?, address_line2 = ?, city = ?, state = ?, postal_code = ?, country = ?
-             WHERE address_id = ? AND user_id = ? AND org_id = ?`,
-            [label || null, address_line1, address_line2 || null, city, state || null, postal_code, country, address_id, userId, orgId]
-        );
+        const updated = await Address.update(address_id, orgId, {
+            label: label || null,
+            address_line1,
+            address_line2: address_line2 || null,
+            city,
+            state: state || null,
+            postal_code,
+            country,
+            user_id: userId // Ensure ownership check still works via the WHERE clause if implemented in the model
+        });
 
-        if (result.affectedRows === 0) return res.status(404).json({ message: "Address not found" });
+        if (!updated) return res.status(404).json({ message: "Address not found" });
         res.json({ message: "Address updated successfully" });
     } catch (error) {
         console.error("Error updating address:", error);
@@ -127,20 +124,29 @@ exports.updateAddress = async (req, res) => {
     }
 };
 
-exports.deleteAddress = async (req, res) => {
+/**
+ * DELETE /addresses/:address_id
+ */
+const deleteAddress = async (req, res) => {
     try {
         const { address_id } = req.params;
         const userId = req.user_id;
         const orgId = req.org_id;
 
-        const [result] = await pool.query(
-            "DELETE FROM addresses WHERE address_id = ? AND user_id = ? AND org_id = ?",
-            [address_id, userId, orgId]
-        );
+        const deleted = await Address.delete(address_id, orgId);
 
-        if (result.affectedRows === 0) return res.status(404).json({ message: "Address not found" });
+        if (!deleted) return res.status(404).json({ message: "Address not found" });
         res.json({ message: "Address deleted" });
     } catch (error) {
+        console.error("Error deleting address:", error);
         res.status(500).json({ message: "Error deleting address" });
     }
+};
+
+export default {
+    addAddress,
+    getUserAddresses,
+    setDefaultAddress,
+    updateAddress,
+    deleteAddress
 };

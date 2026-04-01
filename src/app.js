@@ -1,15 +1,15 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
 
-const userRoutes = require("./routes/userRoutes");
-const productRoutes = require("./routes/productRoutes");
-const cartRoutes = require("./routes/cartRoutes");
-const orderRoutes = require("./routes/orderRoutes");
-const categoryRoutes = require("./routes/categoryRoutes");
-const orgRoutes = require("./routes/orgRoutes");
-const addressRoutes = require("./routes/addressRoutes");
-const tagRoutes = require("./routes/tagRoutes");
-const uploadRoutes = require("./routes/uploadRoutes");
+import userRoutes from "./routes/userRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
+import orgRoutes from "./routes/orgRoutes.js";
+import addressRoutes from "./routes/addressRoutes.js";
+import tagRoutes from "./routes/tagRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 
 const app = express();
 
@@ -30,4 +30,4 @@ app.get("/", (req, res) => {
     res.send("Furn API is live");
 });
 
-module.exports = app;
+export default app;

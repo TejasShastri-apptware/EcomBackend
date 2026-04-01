@@ -1,29 +1,22 @@
-const pool = require("../config/db");
+import { Cart } from "../models/Cart.js";
+import { Product } from "../models/Product.js";
 
-exports.addToCart = async (req, res) => {
+/**
+ * POST /cart/add
+ */
+const addToCart = async (req, res) => {
   try {
     const { product_id, quantity } = req.body;
     const userId = req.user_id;
     const orgId = req.org_id;
 
     // Security check -- does the org own the product?
-    const [productCheck] = await pool.query(
-      "SELECT product_id FROM products WHERE product_id = ? AND org_id = ?",
-      [product_id, orgId]
-    );
-
-    if (productCheck.length === 0) {
+    const product = await Product.findByIdUnderOrg(product_id, orgId);
+    if (!product) {
       return res.status(404).json({ message: "Product not found in this organization" });
     }
 
-    // The UNIQUE (user_id, org_id, product_id) constraint handles the collision during updation
-    const query = `
-      INSERT INTO cart_items (user_id, org_id, product_id, quantity)
-      VALUES (?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
-    `;
-
-    await pool.query(query, [userId, orgId, product_id, quantity]);
+    await Cart.addItem(userId, orgId, { product_id, quantity });
 
     res.status(200).json({ message: "Cart updated successfully" });
   } catch (error) {
@@ -32,20 +25,15 @@ exports.addToCart = async (req, res) => {
   }
 };
 
-exports.getCart = async (req, res) => {
+/**
+ * GET /cart/
+ */
+const getCart = async (req, res) => {
   try {
     const userId = req.user_id;
     const orgId = req.org_id;
 
-    // Org specific cart isolation
-    const [items] = await pool.query(`
-      SELECT c.cart_item_id, c.product_id, p.name, p.price, p.image_url, c.quantity,
-      (p.price * c.quantity) AS item_total
-      FROM cart_items c
-      JOIN products p ON c.product_id = p.product_id
-      WHERE c.user_id = ? AND c.org_id = ?
-    `, [userId, orgId]);
-
+    const items = await Cart.findAllByUser(userId, orgId);
     res.json(items);
   } catch (error) {
     console.error("Error fetching cart:", error);
@@ -53,48 +41,58 @@ exports.getCart = async (req, res) => {
   }
 };
 
-exports.updateCartQuantity = async (req, res) => {
+/**
+ * PUT /cart/update/:cart_item_id
+ */
+const updateCartQuantity = async (req, res) => {
   try {
     const { cart_item_id } = req.params;
     const { quantity } = req.body;
+    const userId = req.user_id;
     const orgId = req.org_id;
 
     if (quantity <= 0) {
       return res.status(400).json({ message: "Quantity must be greater than 0" });
     }
 
-    // cross-tenant manipulation must be avoidd. My d-button stops working for some reason I need to buy a keyboard.
-    const [result] = await pool.query(
-      "UPDATE cart_items SET quantity = ? WHERE cart_item_id = ? AND org_id = ?",
-      [quantity, cart_item_id, orgId]
-    );
+    const updated = await Cart.updateQuantity(cart_item_id, userId, orgId, quantity);
 
-    if (result.affectedRows === 0) {
+    if (!updated) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
     res.json({ message: "Quantity updated" });
   } catch (error) {
+    console.error("Error updating cart quantity:", error);
     res.status(500).json({ message: "Error updating quantity" });
   }
 };
 
-exports.removeFromCart = async (req, res) => {
+/**
+ * DELETE /cart/remove/:cart_item_id
+ */
+const removeFromCart = async (req, res) => {
   try {
     const { cart_item_id } = req.params;
+    const userId = req.user_id;
     const orgId = req.org_id;
 
-    const [result] = await pool.query(
-      "DELETE FROM cart_items WHERE cart_item_id = ? AND org_id = ?",
-      [cart_item_id, orgId]
-    );
+    const removed = await Cart.removeItem(cart_item_id, userId, orgId);
 
-    if (result.affectedRows === 0) {
+    if (!removed) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
     res.json({ message: "Item removed from cart" });
   } catch (error) {
+    console.error("Error removing item from cart:", error);
     res.status(500).json({ message: "Error removing item" });
   }
+};
+
+export default {
+    addToCart,
+    getCart,
+    updateCartQuantity,
+    removeFromCart
 };

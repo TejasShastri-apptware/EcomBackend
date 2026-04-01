@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const orderController = require("../controllers/OrderController");
-const injectContext = require("../middleware/injectContext");
+import orderController from "../controllers/OrderController.js";
+import injectContext from "../middleware/injectContext.js";
 
 // Tenant + user scoped
 router.post("/place", injectContext, orderController.placeOrder);
@@ -16,4 +16,4 @@ router.patch("/:order_id/status", injectContext, orderController.updateOrderStat
 // Global
 router.get("/global-all", orderController.getAllOrders);
 
-module.exports = router;
+export default router;

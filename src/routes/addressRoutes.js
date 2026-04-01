@@ -1,7 +1,7 @@
-const express = require("express");
+import express from 'express';
 const router = express.Router();
-const addressController = require("../controllers/AddressController");
-const injectContext = require("../middleware/injectContext");
+import addressController from "../controllers/AddressController.js";
+import injectContext from "../middleware/injectContext.js";
 
 // Scope - user and org (all require context)
 router.get("/user/:user_id", injectContext, addressController.getUserAddresses);
@@ -10,4 +10,4 @@ router.put("/set-default/:address_id", injectContext, addressController.setDefau
 router.put("/:address_id", injectContext, addressController.updateAddress);
 router.delete("/:address_id", injectContext, addressController.deleteAddress);
 
-module.exports = router;
+export default router;
