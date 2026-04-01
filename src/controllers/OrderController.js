@@ -147,7 +147,7 @@ const getOrderById = async (req, res) => {
         res.json({ order, items });
     } catch (error) {
         console.error(`Error in getOrderById for ${req.params.order_id}:`, error);
-        res.status(500).json({ message: "Error fetching order by ID" });
+        res.status(500).json({ message: "Error fetching order by ID findById" });
     }
 };
 
@@ -165,7 +165,7 @@ const getDetailedOrderById = async (req, res) => {
         res.json(detail);
     } catch (error) {
         console.error(`Error in getDetailedOrderById for ${req.params.order_id}:`, error);
-        res.status(500).json({ message: "Error fetching order details" });
+        res.status(500).json({ message: "Error fetching order details findDetailedById" });
     }
 };
 
