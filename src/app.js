@@ -10,6 +10,7 @@ import orgRoutes from "./routes/orgRoutes.js";
 import addressRoutes from "./routes/addressRoutes.js";
 import tagRoutes from "./routes/tagRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/api/orgs", orgRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 app.get("/", (req, res) => {
     res.send("Furn API is live");
