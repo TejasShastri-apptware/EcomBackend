@@ -1,9 +1,7 @@
 import pool from "../config/db.js";
 
 export const User = {
-  /**
-   * Find a user by email and organization (for login)
-   */
+
   findByEmailAndOrg: async (email, orgId) => {
     const [rows] = await pool.query(
       `SELECT u.*, r.role_name FROM users u JOIN roles r ON u.role_id = r.role_id 
@@ -13,9 +11,7 @@ export const User = {
     return rows[0];
   },
 
-  /**
-   * Check if an email exists in any organization
-   */
+ 
   checkEmailExistsGlobal: async (email) => {
     const [rows] = await pool.query(
       `SELECT org_id FROM users WHERE email = ?`, 
@@ -24,9 +20,7 @@ export const User = {
     return rows;
   },
 
-  /**
-   * Find a user by ID with role info
-   */
+
   findByIdWithRole: async (userId, orgId) => {
     const [rows] = await pool.query(
       `SELECT u.user_id, u.full_name, u.email, u.phone, u.org_id, u.created_at, r.role_name
@@ -38,9 +32,6 @@ export const User = {
     return rows[0];
   },
 
-  /**
-   * Get all users under an organization
-   */
   findAllByOrg: async (orgId) => {
     const [rows] = await pool.query(
       `SELECT u.user_id, u.full_name, u.email, u.phone, r.role_name, u.created_at, u.org_id 
@@ -52,9 +43,7 @@ export const User = {
     return rows;
   },
 
-  /**
-   * Get all users globally (Admin)
-   */
+
   findAllGlobal: async () => {
     const [rows] = await pool.query(`
       SELECT u.user_id, u.full_name, u.email, u.phone, r.role_name, u.created_at, u.org_id 
@@ -65,9 +54,7 @@ export const User = {
     return rows;
   },
 
-  /**
-   * Get full user info including default address (Admin/Detail)
-   */
+
   findDetailByIdUnderOrg: async (id, orgId) => {
     const [rows] = await pool.query(
       `SELECT u.user_id, u.full_name, u.email, u.phone, u.org_id, u.created_at, r.role_name, a.address_id 
@@ -80,9 +67,6 @@ export const User = {
     return rows[0];
   },
 
-  /**
-   * Find user by ID global
-   */
   findByIdGlobal: async (id) => {
     const [rows] = await pool.query(
       "SELECT user_id, full_name, email, phone, role_id, org_id FROM users WHERE user_id = ?",
@@ -91,9 +75,7 @@ export const User = {
     return rows[0];
   },
 
-  /**
-   * Create a new user
-   */
+
   create: async (data, connection = pool) => {
     const [result] = await connection.query(
       `INSERT INTO users (full_name, email, password_hash, phone, role_id, org_id) 
@@ -110,9 +92,6 @@ export const User = {
     return result.insertId;
   },
 
-  /**
-   * Update user profile
-   */
   updateProfile: async (userId, orgId, { full_name, phone }) => {
     const [result] = await pool.query(
       `UPDATE users SET full_name = ?, phone = ? WHERE user_id = ? AND org_id = ?`,
@@ -121,9 +100,6 @@ export const User = {
     return result.affectedRows > 0;
   },
 
-  /**
-   * Delete a user
-   */
   delete: async (userId, orgId) => {
     const [result] = await pool.query(
       "DELETE FROM users WHERE user_id = ? AND org_id = ?", 

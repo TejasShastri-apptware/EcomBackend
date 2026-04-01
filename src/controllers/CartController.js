@@ -1,16 +1,13 @@
 import { Cart } from "../models/Cart.js";
 import { Product } from "../models/Product.js";
 
-/**
- * POST /cart/add
- */
 const addToCart = async (req, res) => {
   try {
     const { product_id, quantity } = req.body;
     const userId = req.user_id;
     const orgId = req.org_id;
 
-    // Security check -- does the org own the product?
+    // Security check
     const product = await Product.findByIdUnderOrg(product_id, orgId);
     if (!product) {
       return res.status(404).json({ message: "Product not found in this organization" });
@@ -25,9 +22,6 @@ const addToCart = async (req, res) => {
   }
 };
 
-/**
- * GET /cart/
- */
 const getCart = async (req, res) => {
   try {
     const userId = req.user_id;
@@ -41,9 +35,6 @@ const getCart = async (req, res) => {
   }
 };
 
-/**
- * PUT /cart/update/:cart_item_id
- */
 const updateCartQuantity = async (req, res) => {
   try {
     const { cart_item_id } = req.params;
@@ -68,9 +59,6 @@ const updateCartQuantity = async (req, res) => {
   }
 };
 
-/**
- * DELETE /cart/remove/:cart_item_id
- */
 const removeFromCart = async (req, res) => {
   try {
     const { cart_item_id } = req.params;

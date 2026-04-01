@@ -1,8 +1,6 @@
 import { Category } from "../models/Category.js";
 
-/**
- * POST /categories/
- */
+
 const createCat = async (req, res) => {
   try {
     const { category_name, description, image_url } = req.body;
@@ -25,9 +23,6 @@ const createCat = async (req, res) => {
   }
 };
 
-/**
- * GET /categories/
- */
 const getAllCategories = async (req, res) => {
   try {
     const orgId = req.org_id;
@@ -39,9 +34,6 @@ const getAllCategories = async (req, res) => {
   }
 };
 
-/**
- * GET /categories/:id
- */
 const getCategoryById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -57,9 +49,6 @@ const getCategoryById = async (req, res) => {
   }
 };
 
-/**
- * PUT /categories/:id
- */
 const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -76,9 +65,6 @@ const updateCategory = async (req, res) => {
   }
 };
 
-/**
- * DELETE /categories/:id
- */
 const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;

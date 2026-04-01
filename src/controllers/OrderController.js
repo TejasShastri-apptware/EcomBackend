@@ -4,9 +4,6 @@ import { Product } from "../models/Product.js";
 import { Address } from "../models/Address.js";
 import pool from "../config/db.js";
 
-/**
- * POST /orders/place
- */
 const placeOrder = async (req, res) => {
     const connection = await pool.getConnection();
     try {
@@ -34,7 +31,7 @@ const placeOrder = async (req, res) => {
             totalAmount += item.price * item.quantity;
         }
 
-        // 3. Create Order
+      
         const orderId = await Order.create({
             user_id: userId,
             org_id: orgId,
@@ -57,7 +54,7 @@ const placeOrder = async (req, res) => {
             }
         }
 
-        // 5. Clear Cart
+    
         await Cart.clear(userId, orgId, connection);
 
         await connection.commit();
@@ -71,9 +68,7 @@ const placeOrder = async (req, res) => {
     }
 };
 
-/**
- * GET /orders (User's order history)
- */
+
 const getUserOrdersByOrg = async (req, res) => {
     try {
         const orgId = req.org_id;
@@ -87,9 +82,7 @@ const getUserOrdersByOrg = async (req, res) => {
     }
 };
 
-/**
- * GET /orders/global (Global Admin)
- */
+
 const getAllOrders = async (req, res) => {
     try {
         const orders = await Order.findAllGlobal();
@@ -100,9 +93,6 @@ const getAllOrders = async (req, res) => {
     }
 };
 
-/**
- * GET /orders/org-all (Org Admin)
- */
 const getAllOrdersByOrg = async (req, res) => {
     try {
         const orgId = req.org_id;
@@ -114,9 +104,7 @@ const getAllOrdersByOrg = async (req, res) => {
     }
 };
 
-/**
- * GET /orders/my-detailed-history (Detailed breakdown for customer)
- */
+
 const getDetailedOrdersByUser = async (req, res) => {
     try {
         const userId = req.user_id;
@@ -131,9 +119,7 @@ const getDetailedOrdersByUser = async (req, res) => {
     }
 };
 
-/**
- * GET /orders/:order_id
- */
+
 const getOrderById = async (req, res) => {
     try {
         const { order_id } = req.params;
@@ -151,9 +137,6 @@ const getOrderById = async (req, res) => {
     }
 };
 
-/**
- * GET /orders/details/:order_id (Admin Detail View)
- */
 const getDetailedOrderById = async (req, res) => {
     try {
         const { order_id } = req.params;

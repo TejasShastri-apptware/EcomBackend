@@ -53,9 +53,7 @@ const getOrganizationById = async (req, res) => {
     }
 };
 
-/**
- * GET /org/slug/:slug
- */
+
 const getOrgBySlug = async (req, res) => {
     try {
         const { slug } = req.params;

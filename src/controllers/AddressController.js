@@ -87,9 +87,6 @@ const setDefaultAddress = async (req, res) => {
     }
 };
 
-/**
- * PUT /addresses/:address_id
- */
 const updateAddress = async (req, res) => {
     try {
         const { address_id } = req.params;
@@ -113,7 +110,7 @@ const updateAddress = async (req, res) => {
             state: state || null,
             postal_code,
             country,
-            user_id: userId // Ensure ownership check still works via the WHERE clause if implemented in the model
+            user_id: userId
         });
 
         if (!updated) return res.status(404).json({ message: "Address not found" });

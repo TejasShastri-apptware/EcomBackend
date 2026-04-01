@@ -1,9 +1,7 @@
 import pool from "../config/db.js";
 
 export const Product = {
-  /**
-   * Get all active products across all organizations
-   */
+ 
   findAllGlobal: async () => {
     const [rows] = await pool.query(`
       SELECT p.*, c.category_name 
@@ -15,9 +13,6 @@ export const Product = {
     return rows;
   },
 
-  /**
-   * Get a single product by ID (global check)
-   */
   findById: async (id) => {
     const [rows] = await pool.query(
       "SELECT * FROM products WHERE product_id = ?",
@@ -26,9 +21,7 @@ export const Product = {
     return rows[0];
   },
 
-  /**
-   * Get all active products under a specific organization
-   */
+ 
   findByOrg: async (orgId) => {
     const [rows] = await pool.query(`
       SELECT p.*, c.category_name, 
@@ -45,9 +38,6 @@ export const Product = {
     return rows;
   },
 
-  /**
-   * Get a single product by ID under a specific organization
-   */
   findByIdUnderOrg: async (id, orgId) => {
     const [rows] = await pool.query(
       "SELECT * FROM products WHERE product_id = ? AND org_id = ?", 
@@ -56,9 +46,7 @@ export const Product = {
     return rows[0];
   },
 
-  /**
-   * Filter products by multiple tags under an organization
-   */
+
   findByTags: async (orgId, tagIds) => {
     const [rows] = await pool.query(
       `
@@ -79,9 +67,6 @@ export const Product = {
     return rows;
   },
 
-  /**
-   * Search and filter products
-   */
   search: async (orgId, { keyword, category_id, min_price, max_price }) => {
     let query = "SELECT * FROM products WHERE org_id = ? AND is_active = TRUE";
     let params = [orgId];

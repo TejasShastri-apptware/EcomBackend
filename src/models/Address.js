@@ -1,9 +1,7 @@
 import pool from "../config/db.js";
 
 export const Address = {
-  /**
-   * Find a user's address by their ID
-   */
+  
   findByUser: async (userId, orgId) => {
     const [rows] = await pool.query(
       "SELECT * FROM addresses WHERE user_id = ? AND org_id = ?",
@@ -12,9 +10,7 @@ export const Address = {
     return rows;
   },
 
-  /**
-   * Find a single address by id and organization
-   */
+  
   findByIdUnderOrg: async (id, orgId) => {
     const [rows] = await pool.query(
       "SELECT * FROM addresses WHERE address_id = ? AND org_id = ?",
@@ -23,9 +19,7 @@ export const Address = {
     return rows[0];
   },
 
-  /**
-   * Create an address
-   */
+  
   create: async (data, connection = pool) => {
     const [result] = await connection.query(
       `INSERT INTO addresses (org_id, user_id, label, address_line1, address_line2, city, state, postal_code, country, is_default)
@@ -39,9 +33,7 @@ export const Address = {
     return result.insertId;
   },
 
-  /**
-   * Update an address
-   */
+  
   update: async (id, orgId, data) => {
     const [result] = await pool.query(
       "UPDATE addresses SET ? WHERE address_id = ? AND org_id = ?",
@@ -50,9 +42,7 @@ export const Address = {
     return result.affectedRows > 0;
   },
 
-  /**
-   * Delete an address
-   */
+  
   delete: async (id, orgId) => {
     const [result] = await pool.query(
       "DELETE FROM addresses WHERE address_id = ? AND org_id = ?",
@@ -61,9 +51,7 @@ export const Address = {
     return result.affectedRows > 0;
   },
 
-  /**
-   * Set address as default
-   */
+  
   setDefault: async (id, userId, orgId, connection = pool) => {
     // Unset current default
     await connection.query(

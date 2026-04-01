@@ -18,7 +18,7 @@ export const createOrder = async (userId, orgId, items) => {
             if (!product) throw new Error(`Product not found or invalid org: ${item.productId}`);
             if (product.stock_quantity < item.quantity) throw new Error(`Insufficient stock for product: ${product.name}`);
 
-            const itemPrice = product.price; // We could apply discounts here if needed
+            const itemPrice = product.price;
             totalAmount += itemPrice * item.quantity;
         }
 
@@ -27,8 +27,8 @@ export const createOrder = async (userId, orgId, items) => {
             user_id: userId,
             org_id: orgId,
             total_amount: totalAmount,
-            payment_id: null, // Default for service
-            shipping_address_id: null // Default for service
+            payment_id: null,
+            shipping_address_id: null
         }, connection);
 
         // 3. Insertion of items & Stock Adjustment
@@ -41,7 +41,6 @@ export const createOrder = async (userId, orgId, items) => {
                 price: product.price
             }], connection);
 
-            // Deduct stock
             await Product.update(item.productId, orgId, {
                 stock_quantity: product.stock_quantity - item.quantity
             }, connection);

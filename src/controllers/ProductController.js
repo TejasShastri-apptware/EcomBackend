@@ -2,9 +2,7 @@ import { Product } from "../models/Product.js";
 import { Category } from "../models/Category.js";
 import pool from "../config/db.js";
 
-/**
- * GET /products/global/all
- */
+
 const getAllProductsGlobal = async (req, res) => {
   try {
     const rows = await Product.findAllGlobal();
@@ -15,9 +13,6 @@ const getAllProductsGlobal = async (req, res) => {
   }
 };
 
-/**
- * GET /products/
- */
 const getAllProductsUnderOrg = async (req, res) => {
   try {
     const orgId = req.org_id;
@@ -29,9 +24,7 @@ const getAllProductsUnderOrg = async (req, res) => {
   }
 };
 
-/**
- * GET /products/:id
- */
+
 const getProductByIdUnderOrg = async (req, res) => {
   try {
     const { id } = req.params;
