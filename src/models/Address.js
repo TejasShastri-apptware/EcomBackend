@@ -11,10 +11,10 @@ export const Address = {
   },
 
   
-  findByIdUnderOrg: async (id, orgId) => {
+  findByIdUnderOrg: async (id, userId, orgId) => {
     const [rows] = await pool.query(
-      "SELECT * FROM addresses WHERE address_id = ? AND org_id = ?",
-      [id, orgId]
+      "SELECT * FROM addresses WHERE address_id = ? AND user_id = ? AND org_id = ?",
+      [id, userId, orgId]
     );
     return rows[0];
   },

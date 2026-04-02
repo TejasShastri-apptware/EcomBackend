@@ -14,9 +14,9 @@ const placeOrder = async (req, res) => {
         const { shipping_address_id, payment_id } = req.body;
 
         // 1. Address Ownership Check
-        const address = await Address.findByIdUnderOrg(shipping_address_id, orgId);
-        if (!address || address.user_id !== userId) {
-            throw new Error("Invalid or unauthorized shipping address.");
+        const address = await Address.findByIdUnderOrg(shipping_address_id, userId, orgId);
+        if (!address) {
+            throw new Error(`Invalid or unauthorized shipping address. Creds(uid, oid, sid) - ${userId}, ${orgId}, ${shipping_address_id}`);
         }
 
         // 2. Fetch Cart Items with FOR UPDATE lock
@@ -31,7 +31,7 @@ const placeOrder = async (req, res) => {
             totalAmount += item.price * item.quantity;
         }
 
-      
+
         const orderId = await Order.create({
             user_id: userId,
             org_id: orgId,
@@ -54,7 +54,7 @@ const placeOrder = async (req, res) => {
             }
         }
 
-    
+
         await Cart.clear(userId, orgId, connection);
 
         await connection.commit();

@@ -2,7 +2,9 @@ import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 dotenv.config();
 
-const pool = mysql.createPool(process.env.MYSQL_URL);
+let curr = null;
+curr = process.env.MYSQL_URL;
+const pool = mysql.createPool(curr);
 // const pool = mysql.createPool({
 //   host: process.env.DB_HOST,
 //   user: process.env.DB_USER,
@@ -14,8 +16,10 @@ const pool = mysql.createPool(process.env.MYSQL_URL);
 // });
 // Test connection
 pool.getConnection()
-  .then(connection => {
-    console.log("Database connected successfully");
+  .then(connection => { 
+    // console.log("Database connected successfully");
+    if(curr) console.log("Database running on railway");
+    else console.log("Database running locally(furn2)")
     connection.release();
   })
   .catch(err => {

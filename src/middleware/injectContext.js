@@ -11,7 +11,11 @@
 
 
 export default (req, res, next) => {
-    req.org_id = req.headers['x-org-id'] || req.query.org_id || null;
-    req.user_id = req.headers['x-user-id'] || null; // Never from body or query
+    const rawOrgId = req.headers['x-org-id'] || req.query.org_id || null;
+    const rawUserId = req.headers['x-user-id'] || null;
+
+    req.org_id = rawOrgId ? Number(rawOrgId) : null;
+    req.user_id = rawUserId ? Number(rawUserId) : null;
+    
     next();
 };
